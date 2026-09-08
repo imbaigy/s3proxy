@@ -21,6 +21,7 @@ import java.io.InputStream;
 import java.net.URI;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 
 import com.google.common.base.Strings;
 import com.google.common.base.Supplier;
@@ -130,6 +131,18 @@ public final class AwsS3SdkBlobStore implements BlobStore {
             String conditionalWrites,
             String chunkedEncodingEnabled,
             String stripETagQuotes) {
+        this(creds, endpointUrl, region, conditionalWrites,
+                chunkedEncodingEnabled, stripETagQuotes, null);
+    }
+
+    public AwsS3SdkBlobStore(
+            Supplier<Credentials> creds,
+            String endpointUrl,
+            String region,
+            String conditionalWrites,
+            String chunkedEncodingEnabled,
+            String stripETagQuotes,
+            @Nullable String forcePathStyle) {
         this.endpoint = endpointUrl;
         this.awsRegion = Region.of(region);
         this.useNativeConditionalWrites = !"emulated".equalsIgnoreCase(
@@ -145,8 +158,10 @@ public final class AwsS3SdkBlobStore implements BlobStore {
         // Disable checksum calculation to avoid reading the stream twice.
         // This allows streaming non-resettable InputStreams to S3-compatible
         // backends that don't support aws-chunked encoding.
-        builder.requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED);
-        builder.responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED);
+        builder.requestChecksumCalculation(
+                RequestChecksumCalculation.WHEN_REQUIRED);
+        builder.responseChecksumValidation(
+                ResponseChecksumValidation.WHEN_REQUIRED);
 
         // Disable SDK retries so a non-resettable payload stream that errors
         // mid-upload (e.g. a ChecksumValidatingInputStream rejecting a body)
@@ -158,20 +173,41 @@ public final class AwsS3SdkBlobStore implements BlobStore {
 
         builder.credentialsProvider(credentialsProvider(creds));
 
+        if (forcePathStyle != null && !forcePathStyle.isEmpty()) {
+            builder.forcePathStyle(Boolean.parseBoolean(forcePathStyle));
+        }
+
         if (endpoint != null && !endpoint.isEmpty()) {
             URI endpointUri = URI.create(endpoint);
             builder.endpointOverride(endpointUri);
 
             // Use path-style for non-AWS endpoints (Hetzner, MinIO, etc.)
-            String host = endpointUri.getHost();
-            if (host != null && !host.endsWith(".amazonaws.com")) {
-                builder.forcePathStyle(true);
+            // unless configured otherwise or the endpoint is a known
+            // provider requiring virtual-hosted-style (e.g. Tencent COS).
+            if (forcePathStyle == null || forcePathStyle.isEmpty()) {
+                String host = endpointUri.getHost();
+                if (host != null && !isVirtualHostEndpoint(host)) {
+                    builder.forcePathStyle(true);
+                }
             }
         }
 
         builder.region(this.awsRegion);
 
         this.s3Client = builder.build();
+    }
+
+    static boolean isVirtualHostEndpoint(String host) {
+        String lowerHost = host.toLowerCase(Locale.ROOT);
+        return lowerHost.endsWith(".amazonaws.com") ||
+                lowerHost.endsWith(".amazonaws.com.cn") ||
+                lowerHost.endsWith(".myqcloud.com") ||
+                lowerHost.endsWith(".tencentcos.cn") ||
+                lowerHost.endsWith(".aliyuncs.com");
+    }
+
+    public S3Client getS3Client() {
+        return s3Client;
     }
 
     /**

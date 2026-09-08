@@ -279,6 +279,13 @@ precisely because something might be.  Set
 `s3proxy.aws-s3.conditional-writes=emulated` for an S3-compatible endpoint
 that does not implement conditional writes itself.
 
+Set `s3proxy.aws-s3.force-path-style=false` (or `s3proxy.aws-s3.path-style=false`)
+for an S3-compatible endpoint that requires virtual-hosted-style access (or
+`true` to force path-style access).  By default, S3Proxy uses path-style for
+non-AWS endpoints unless configured otherwise or the endpoint is a known
+provider requiring virtual-hosted-style, such as Tencent Cloud COS
+(`*.myqcloud.com`, `*.tencentcos.cn`) or Alibaba Cloud OSS (`*.aliyuncs.com`).
+
 `aws-s3` also deletes conditionally on the backend -- `If-Match`,
 `x-amz-if-match-size`, and `x-amz-if-match-last-modified-time`, on
 DeleteObject and DeleteObjects alike -- and the backend decides what it

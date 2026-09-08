@@ -82,10 +82,16 @@ public final class BlobStores {
                     "s3proxy.aws-s3.chunked-encoding-enabled", "true");
             String stripETagQuotes = properties.getProperty(
                     "s3proxy.aws-s3.strip-etag-quotes", "false");
+            String forcePathStyle = properties.getProperty(
+                    "s3proxy.aws-s3.force-path-style");
+            if (forcePathStyle == null) {
+                forcePathStyle = properties.getProperty(
+                        "s3proxy.aws-s3.path-style");
+            }
             yield new AwsS3SdkBlobStore(creds, endpoint,
                     region.isEmpty() ? "us-east-1" : region,
                     conditionalWrites, chunkedEncodingEnabled,
-                    stripETagQuotes);
+                    stripETagQuotes, forcePathStyle);
         }
         case "azureblob" -> {
             String eTagMode = properties.getProperty(
